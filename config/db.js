@@ -13,16 +13,15 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 
 
 const connectDB = async () => {
-  try {
-    await client.connect();
+  await client.connect();
 
-    await client.db("admin").command({ ping: 1 });
+const db = client.db("admin");
 
-    console.log("MongoDB connected successfully!");
-  } catch (error) {
-    console.error("MongoDB connection failed:", error);
-    throw error;
-  }
+await db.command({ ping: 1 });
+
+console.log("MongoDB connected successfully!");
+
+return db;
 }
 
 
