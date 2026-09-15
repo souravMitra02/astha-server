@@ -15,7 +15,7 @@ const client = new MongoClient(process.env.MONGODB_URI, {
 const connectDB = async () => {
   await client.connect();
 
-const db = client.db("admin");
+const db = client.db("astha");
 
 await db.command({ ping: 1 });
 
@@ -23,8 +23,6 @@ console.log("MongoDB connected successfully!");
 
 return db;
 }
-
-
 
 
 module.exports = connectDB;

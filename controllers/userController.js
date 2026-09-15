@@ -38,8 +38,41 @@ const registerUser = async (req, res) => {
       userId: result.insertedId,
     });
   }
+  
+};
+
+
+const loginUser = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({
+      message: "ইমেইল এবং পাসওয়ার্ড দেওয়া আবশ্যক",
+    });
+  }
+
+  const db = await connectDB();
+
+  const user = await db.collection("users").findOne({
+    email: email,
+  });
+
+  if (!user) {
+    return res.status(401).json({
+      message: "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়",
+    });
+  }
+
+  const isPasswordCorrect = await bcrypt.compare(password, user.password);
+  if (!isPasswordCorrect) {
+  res.status(401).json({
+    message: "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়",
+  });
+}
+
 };
 
 module.exports = {
   registerUser,
+  loginUser
 };
