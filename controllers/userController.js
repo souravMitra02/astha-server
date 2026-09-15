@@ -1,4 +1,5 @@
 const connectDB = require("../config/db");
+const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const registerUser = async (req, res) => {
   const { name, email, password, phone } = req.body;
@@ -38,10 +39,10 @@ const registerUser = async (req, res) => {
       userId: result.insertedId,
     });
   }
-  
 };
 
 
+// login user
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
@@ -65,14 +66,36 @@ const loginUser = async (req, res) => {
 
   const isPasswordCorrect = await bcrypt.compare(password, user.password);
   if (!isPasswordCorrect) {
-  res.status(401).json({
-    message: "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়",
-  });
-}
+   return res.status(401).json({
+      message: "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়",
+    });
+  }
+  const token = jwt.sign(
+    {
+      userId: user._id,
+      role: user.role,
+    },
+    
+    process.env.JWT_SECRET,
 
+    {
+      expiresIn: "10d",
+    },
+    
+  );
+  return res.status(200).json({
+  message: "লগইন সফল হয়েছে",
+  token: token,
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+  },
+});
 };
 
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
 };
