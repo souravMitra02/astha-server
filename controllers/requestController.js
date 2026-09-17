@@ -183,9 +183,57 @@ const updateRequestStatus = async (req, res) => {
   }
 };
 
+const getSingleRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "সঠিক request ID দেওয়া হয়নি",
+      });
+    }
+
+    const db = await connectDB();
+
+    const request = await db.collection("requests").findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Request পাওয়া যায়নি",
+      });
+    }
+
+    const userId = req.user.userId;
+
+    if (request.userId !== userId && request.providerId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "এই request দেখার অনুমতি আপনার নেই",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      request,
+    });
+  } catch (error) {
+    console.error("Get single request error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Request-এর তথ্য আনতে সমস্যা হয়েছে",
+    });
+  }
+};
+
 module.exports = {
     createRequest,
     getMyRequests,
     getProviderRequests,
-    updateRequestStatus
+    updateRequestStatus,
+    getSingleRequest
 };
