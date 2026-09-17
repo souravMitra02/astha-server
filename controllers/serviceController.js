@@ -10,14 +10,15 @@ const createService = async (req, res) => {
         
     }
     const db = await connectDB();
-
+const providerId = req.user.userId;
     const newService = {
   title,
   category,
   description,
   price,
   location,
-  available: true,
+available: true,
+  providerId,
   createdAt: new Date(),
     };
     const result = await db.collection("services").insertOne(newService);
