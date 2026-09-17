@@ -33,13 +33,13 @@ const createRequest = async (req, res) => {
     }
 
     const newRequest = {
-      serviceId: new ObjectId(serviceId),
-      userId: req.user.userId,
-      providerId: service.providerId,
-      status: "pending",
-      message,
-      createdAt: new Date(),
-    };
+  serviceId: new ObjectId(serviceId),
+  userId: new ObjectId(req.user.userId),
+  providerId: new ObjectId(service.providerId),
+  status: "pending",
+  message,
+  createdAt: new Date(),
+};
 
     const result = await db
       .collection("requests")
@@ -69,8 +69,60 @@ const getMyRequests = async (req, res) => {
 
     const requests = await db
       .collection("requests")
-      .find({ userId })
-      .sort({ createdAt: -1 })
+      .aggregate([
+        {
+          $match: {
+            userId: new ObjectId(userId),
+          },
+        },
+        {
+          $lookup: {
+            from: "services",
+            localField: "serviceId",
+            foreignField: "_id",
+            as: "service",
+          },
+        },
+        {
+          $unwind: "$service",
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "providerId",
+            foreignField: "_id",
+            as: "provider",
+          },
+        },
+        {
+          $unwind: {
+            path: "$provider",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            serviceId: 1,
+            userId: 1,
+            providerId: 1,
+            status: 1,
+            message: 1,
+            createdAt: 1,
+            updatedAt: 1,
+
+            serviceTitle: "$service.title",
+            serviceCategory: "$service.category",
+
+            providerName: "$provider.name",
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+          },
+        },
+      ])
       .toArray();
 
     res.status(200).json({
@@ -95,8 +147,58 @@ const getProviderRequests = async (req, res) => {
 
     const requests = await db
       .collection("requests")
-      .find({ providerId })
-      .sort({ createdAt: -1 })
+      .aggregate([
+        {
+          $match: {
+            providerId: new ObjectId(providerId),
+          },
+        },
+        {
+          $lookup: {
+            from: "services",
+            localField: "serviceId",
+            foreignField: "_id",
+            as: "service",
+          },
+        },
+        {
+          $unwind: "$service",
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "userId",
+            foreignField: "_id",
+            as: "user",
+          },
+        },
+        {
+          $unwind: {
+            path: "$user",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            serviceId: 1,
+            userId: 1,
+            providerId: 1,
+            status: 1,
+            message: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            serviceTitle: "$service.title",
+            serviceCategory: "$service.category",
+            userName: "$user.name",
+          },
+        },
+        {
+          $sort: {
+            createdAt: -1,
+          },
+        },
+      ])
       .toArray();
 
     res.status(200).json({
@@ -112,6 +214,9 @@ const getProviderRequests = async (req, res) => {
     });
   }
 };
+
+
+
 
 const updateRequestStatus = async (req, res) => {
   try {
@@ -145,7 +250,7 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    if (request.providerId !== req.user.userId) {
+    if (request.providerId.toString() !== req.user.userId) {
       return res.status(403).json({
         success: false,
         message: "এই request পরিবর্তন করার অনুমতি আপনার নেই",
