@@ -1,34 +1,54 @@
 const connectDB = require("../config/db");
 const { ObjectId } = require("mongodb");
+
 const createService = async (req, res) => {
   const { title, category, description, price, location } = req.body;
 
-    if (!title || !category || !description || !price || !location) {
-      return res.status(400).json({
-    message: "সেবার সব তথ্য দেওয়া আবশ্যক",
-      });
-        
-    }
-    const db = await connectDB();
-const providerId = req.user.userId;
-    const newService = {
-  title,
-  category,
-  description,
-  price,
-  location,
-available: true,
-  providerId,
-  createdAt: new Date(),
-    };
-    const result = await db.collection("services").insertOne(newService);
-    if (result.acknowledged) {
-        return res.status(201).json({
+  if (!title || !category || !description || !price || !location) {
+    return res.status(400).json({
+      message: "সেবার সব তথ্য দেওয়া আবশ্যক",
+    });
+  }
+
+  const db = await connectDB();
+
+  const providerId = new ObjectId(req.user.userId);
+
+  const provider = await db.collection("users").findOne({
+    _id: providerId,
+  });
+
+  if (!provider || provider.role !== "provider") {
+    return res.status(403).json({
+      message: "শুধু provider সেবা যোগ করতে পারবেন",
+    });
+  }
+
+  if (provider.category !== category) {
+    return res.status(400).json({
+      message: "আপনার provider category-এর সাথে service category মিলছে না",
+    });
+  }
+
+  const newService = {
+    title,
+    category,
+    description,
+    price,
+    location,
+    available: true,
+    providerId,
+    createdAt: new Date(),
+  };
+
+  const result = await db.collection("services").insertOne(newService);
+
+  if (result.acknowledged) {
+    return res.status(201).json({
       message: "সেবা সফলভাবে যোগ করা হয়েছে",
       serviceId: result.insertedId,
     });
-    }
-
+  }
 };
 
 const getAllServices = async (req, res) => {

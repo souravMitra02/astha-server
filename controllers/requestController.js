@@ -24,13 +24,20 @@ const createRequest = async (req, res) => {
     const service = await db
       .collection("services")
       .findOne({ _id: new ObjectId(serviceId) });
-
+console.log("Service:", service);
     if (!service) {
       return res.status(404).json({
         success: false,
         message: "সার্ভিসটি পাওয়া যায়নি",
       });
     }
+
+if (service.providerId.toString() === req.user.userId) {
+  return res.status(400).json({
+    success: false,
+    message: "নিজের সেবায় অনুরোধ করা যাবে না",
+  });
+}
 
     const newRequest = {
   serviceId: new ObjectId(serviceId),

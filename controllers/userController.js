@@ -2,12 +2,20 @@ const connectDB = require("../config/db");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const { ObjectId } = require("mongodb");
+
+
 const registerUser = async (req, res) => {
-  const { name, email, password, phone, role } = req.body;
+  const { name, email, password, phone, role, category } = req.body;
 
   if (!name || !email || !password || !phone) {
     return res.status(400).json({
       message: "সব তথ্য দেওয়া আবশ্যক",
+    });
+  }
+
+  if (role === "provider" && !category) {
+    return res.status(400).json({
+      message: "Provider-এর category দেওয়া আবশ্যক",
     });
   }
 
@@ -31,6 +39,7 @@ const registerUser = async (req, res) => {
     password: hashedPassword,
     phone,
     role: role || "user",
+    category: role === "provider" ? category : null,
     createdAt: new Date(),
   };
 
@@ -127,6 +136,7 @@ const getProfile = async (req, res) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        category: user.category,
       },
     });
   } catch (error) {
