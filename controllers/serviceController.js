@@ -108,11 +108,76 @@ const getSingleService = async (req, res) => {
   }
 };
 
+const findAvailableServices = async (req, res) => {
+  try {
+    const { category, location } = req.query;
 
+    if (!category || !location) {
+      return res.status(400).json({
+        success: false,
+        message: "Category এবং location দেওয়া আবশ্যক",
+      });
+    }
+const db = await connectDB();
+    const services = await db
+  .collection("services")
+  .aggregate([
+    {
+      $match: {
+        category,
+        location,
+        available: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "providerId",
+        foreignField: "_id",
+        as: "provider",
+      },
+    },
+    {
+      $unwind: "$provider",
+    },
+    {
+      $project: {
+        title: 1,
+        category: 1,
+        description: 1,
+        price: 1,
+        location: 1,
+        available: 1,
+        providerId: 1,
+        provider: {
+          name: 1,
+          phone: 1,
+          email: 1,
+          category: 1,
+        },
+      },
+    },
+  ])
+  .toArray();
+
+    return res.status(200).json({
+  success: true,
+  providers: services,
+});
+  } catch (error) {
+    console.error("Find available services error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Available service খুঁজতে সমস্যা হয়েছে",
+    });
+  }
+};
 
 
 module.exports = {
     createService,
     getAllServices,
-    getSingleService
+  getSingleService,
+    findAvailableServices
 };
