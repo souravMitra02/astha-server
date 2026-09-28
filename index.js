@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const requestRoutes = require("./routes/requestRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 const port = process.env.PORT || 3000;
 
 app.use(cors());
@@ -14,6 +15,9 @@ app.use("/api/users", userRoutes);
 
 app.use("/api/services", serviceRoutes);
 app.use("/api/requests", requestRoutes);
+
+
+app.use("/api/ai", aiRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hello World!');
