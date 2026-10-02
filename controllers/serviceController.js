@@ -2,9 +2,25 @@ const connectDB = require("../config/db");
 const { ObjectId } = require("mongodb");
 
 const createService = async (req, res) => {
-  const { title, category, description, price, location } = req.body;
+ const {
+  title,
+  category,
+  description,
+  price,
+  location,
+  latitude,
+  longitude,
+} = req.body;
 
-  if (!title || !category || !description || !price || !location) {
+  if (
+  !title ||
+  !category ||
+  !description ||
+  !price ||
+  !location ||
+  latitude === undefined ||
+  longitude === undefined
+) {
     return res.status(400).json({
       message: "সেবার সব তথ্য দেওয়া আবশ্যক",
     });
@@ -31,15 +47,17 @@ const createService = async (req, res) => {
   }
 
   const newService = {
-    title,
-    category,
-    description,
-    price,
-    location,
-    available: true,
-    providerId,
-    createdAt: new Date(),
-  };
+  title,
+  category,
+  description,
+  price,
+  location,
+  latitude,
+  longitude,
+  available: true,
+  providerId,
+  createdAt: new Date(),
+};
 
   const result = await db.collection("services").insertOne(newService);
 
@@ -110,60 +128,118 @@ const getSingleService = async (req, res) => {
 
 const findAvailableServices = async (req, res) => {
   try {
-    const { category, location } = req.query;
+    const { category, latitude, longitude } = req.query;
 
-    if (!category || !location) {
+    const userLatitude = Number(latitude);
+    const userLongitude = Number(longitude);
+
+    if (
+      !category ||
+      latitude === undefined ||
+      longitude === undefined ||
+      Number.isNaN(userLatitude) ||
+      Number.isNaN(userLongitude)
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Category এবং location দেওয়া আবশ্যক",
+        message: "Category এবং location coordinates দেওয়া আবশ্যক",
       });
     }
-const db = await connectDB();
+
+    const db = await connectDB();
+
     const services = await db
-  .collection("services")
-  .aggregate([
-    {
-      $match: {
-        category,
-        location,
-        available: true,
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "providerId",
-        foreignField: "_id",
-        as: "provider",
-      },
-    },
-    {
-      $unwind: "$provider",
-    },
-    {
-      $project: {
-        title: 1,
-        category: 1,
-        description: 1,
-        price: 1,
-        location: 1,
-        available: 1,
-        providerId: 1,
-        provider: {
-          name: 1,
-          phone: 1,
-          email: 1,
-          category: 1,
+      .collection("services")
+      .aggregate([
+        {
+          $match: {
+            category,
+            available: true,
+            latitude: { $exists: true },
+            longitude: { $exists: true },
+          },
         },
-      },
-    },
-  ])
-  .toArray();
+        {
+          $addFields: {
+            distance: {
+              $multiply: [
+                6371,
+                {
+                  $acos: {
+                    $add: [
+                      {
+                        $multiply: [
+                          { $sin: { $degreesToRadians: userLatitude } },
+                          { $sin: { $degreesToRadians: "$latitude" } },
+                        ],
+                      },
+                      {
+                        $multiply: [
+                          { $cos: { $degreesToRadians: userLatitude } },
+                          { $cos: { $degreesToRadians: "$latitude" } },
+                          {
+                            $cos: {
+                              $subtract: [
+                                { $degreesToRadians: "$longitude" },
+                                { $degreesToRadians: userLongitude },
+                              ],
+                            },
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
+        {
+          $match: {
+            distance: { $lte: 10 },
+          },
+        },
+        {
+          $sort: {
+            distance: 1,
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "providerId",
+            foreignField: "_id",
+            as: "provider",
+          },
+        },
+        {
+          $unwind: "$provider",
+        },
+        {
+          $project: {
+            title: 1,
+            category: 1,
+            description: 1,
+            price: 1,
+            location: 1,
+            available: 1,
+            providerId: 1,
+            distance: 1,
+            provider: {
+              name: 1,
+              phone: 1,
+              email: 1,
+              category: 1,
+            },
+          },
+        },
+      ])
+      .toArray();
 
     return res.status(200).json({
-  success: true,
-  providers: services,
-});
+      success: true,
+      providers: services,
+    });
   } catch (error) {
     console.error("Find available services error:", error);
 
@@ -173,7 +249,6 @@ const db = await connectDB();
     });
   }
 };
-
 
 module.exports = {
     createService,

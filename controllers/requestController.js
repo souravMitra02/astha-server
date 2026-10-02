@@ -24,7 +24,7 @@ const createRequest = async (req, res) => {
     const service = await db
       .collection("services")
       .findOne({ _id: new ObjectId(serviceId) });
-console.log("Service:", service);
+
     if (!service) {
       return res.status(404).json({
         success: false,
@@ -32,21 +32,34 @@ console.log("Service:", service);
       });
     }
 
-if (service.providerId.toString() === req.user.userId) {
-  return res.status(400).json({
-    success: false,
-    message: "নিজের সেবায় অনুরোধ করা যাবে না",
-  });
-}
+    if (service.providerId.toString() === req.user.userId) {
+      return res.status(400).json({
+        success: false,
+        message: "নিজের সেবায় অনুরোধ করা যাবে না",
+      });
+    }
+
+    const existingRequest = await db.collection("requests").findOne({
+      serviceId: new ObjectId(serviceId),
+      userId: new ObjectId(req.user.userId),
+      status: { $in: ["pending", "accepted"] },
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({
+        success: false,
+        message: "এই সেবার জন্য আপনার একটি অনুরোধ ইতিমধ্যে রয়েছে",
+      });
+    }
 
     const newRequest = {
-  serviceId: new ObjectId(serviceId),
-  userId: new ObjectId(req.user.userId),
-  providerId: new ObjectId(service.providerId),
-  status: "pending",
-  message,
-  createdAt: new Date(),
-};
+      serviceId: new ObjectId(serviceId),
+      userId: new ObjectId(req.user.userId),
+      providerId: new ObjectId(service.providerId),
+      status: "pending",
+      message,
+      createdAt: new Date(),
+    };
 
     const result = await db
       .collection("requests")
