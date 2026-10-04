@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const serviceRoutes = require("./routes/serviceRoutes");
 const requestRoutes = require("./routes/requestRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const port = process.env.PORT || 3000;
 
@@ -15,7 +16,7 @@ app.use("/api/users", userRoutes);
 
 app.use("/api/services", serviceRoutes);
 app.use("/api/requests", requestRoutes);
-
+app.use("/api/notifications", notificationRoutes);
 
 app.use("/api/ai", aiRoutes);
 
