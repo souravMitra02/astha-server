@@ -250,9 +250,43 @@ const findAvailableServices = async (req, res) => {
   }
 };
 
+const getServicesByProvider = async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    if (!ObjectId.isValid(providerId)) {
+      return res.status(400).json({
+        message: "Invalid provider id",
+      });
+    }
+
+    const db = await connectDB();
+
+    const services = await db
+      .collection("services")
+      .find({
+        providerId: new ObjectId(providerId),
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    return res.status(200).json({
+      success: true,
+      services,
+    });
+  } catch (error) {
+    console.error("Get provider services error:", error);
+
+    return res.status(500).json({
+      message: "Provider-এর services আনতে সমস্যা হয়েছে",
+    });
+  }
+};
+
 module.exports = {
     createService,
     getAllServices,
   getSingleService,
-    findAvailableServices
+  findAvailableServices,
+    getServicesByProvider,
 };

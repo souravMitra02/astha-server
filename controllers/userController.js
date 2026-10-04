@@ -147,9 +147,83 @@ const getProfile = async (req, res) => {
     });
   }
 };
+const getAllProviders = async (req, res) => {
+  try {
+    const db = await connectDB();
+
+    const providers = await db
+      .collection("users")
+      .find(
+        { role: "provider" },
+        {
+          projection: {
+            password: 0,
+          },
+        }
+      )
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    return res.status(200).json({
+      success: true,
+      providers,
+    });
+  } catch (error) {
+    console.error("Get providers error:", error);
+
+    return res.status(500).json({
+      message: "Provider list আনতে সমস্যা হয়েছে",
+    });
+  }
+};
+
+const getSingleProvider = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        message: "Invalid provider id",
+      });
+    }
+
+    const db = await connectDB();
+
+    const provider = await db.collection("users").findOne(
+      {
+        _id: new ObjectId(id),
+        role: "provider",
+      },
+      {
+        projection: {
+          password: 0,
+        },
+      }
+    );
+
+    if (!provider) {
+      return res.status(404).json({
+        message: "Provider পাওয়া যায়নি",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      provider,
+    });
+  } catch (error) {
+    console.error("Get single provider error:", error);
+
+    return res.status(500).json({
+      message: "Provider-এর তথ্য আনতে সমস্যা হয়েছে",
+    });
+  }
+};
 
 module.exports = {
   registerUser,
   loginUser,
-  getProfile
+  getProfile,
+  getAllProviders,
+  getSingleProvider
 };
