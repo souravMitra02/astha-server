@@ -1,6 +1,7 @@
 const connectDB = require("../config/db");
 const { ObjectId } = require("mongodb");
 const createUserNotification = require("../utils/notificationHelper");
+
 const createRequest = async (req, res) => {
   try {
     const { serviceId, message } = req.body;
@@ -20,13 +21,14 @@ const createRequest = async (req, res) => {
     }
 
     const db = await connectDB();
-    const user = await db.collection("users").findOne({
-  _id: new ObjectId(req.user.userId),
-});
 
-    const service = await db
-      .collection("services")
-      .findOne({ _id: new ObjectId(serviceId) });
+    const user = await db.collection("users").findOne({
+      _id: new ObjectId(req.user.userId),
+    });
+
+    const service = await db.collection("services").findOne({
+      _id: new ObjectId(serviceId),
+    });
 
     if (!service) {
       return res.status(404).json({
@@ -45,7 +47,9 @@ const createRequest = async (req, res) => {
     const existingRequest = await db.collection("requests").findOne({
       serviceId: new ObjectId(serviceId),
       userId: new ObjectId(req.user.userId),
-      status: { $in: ["pending", "accepted"] },
+      status: {
+        $in: ["pending", "accepted"],
+      },
     });
 
     if (existingRequest) {
@@ -67,13 +71,14 @@ const createRequest = async (req, res) => {
     const result = await db
       .collection("requests")
       .insertOne(newRequest);
-   await createUserNotification({
-  userId: service.providerId,
-  type: "new_request",
-  title: "নতুন সেবার অনুরোধ",
-  message: `${user.name} আপনার "${service.title}" সেবার জন্য অনুরোধ করেছেন।`,
-  requestId: result.insertedId,
-});
+
+    await createUserNotification({
+      userId: service.providerId,
+      type: "new_request",
+      title: "নতুন সেবার অনুরোধ",
+      message: `${user.name} আপনার "${service.title}" সেবার জন্য অনুরোধ করেছেন।`,
+      requestId: result.insertedId,
+    });
 
     res.status(201).json({
       success: true,
@@ -89,7 +94,6 @@ const createRequest = async (req, res) => {
     });
   }
 };
-
 
 const getMyRequests = async (req, res) => {
   try {
@@ -245,8 +249,132 @@ const getProviderRequests = async (req, res) => {
   }
 };
 
+/* =========================================
+   Provider Dashboard Statistics
+========================================= */
 
+const getProviderStats = async (req, res) => {
+  try {
+    const db = await connectDB();
 
+    const providerId = req.user.userId;
+
+    if (!ObjectId.isValid(providerId)) {
+      return res.status(400).json({
+        success: false,
+        message: "সঠিক provider ID পাওয়া যায়নি",
+      });
+    }
+
+    const provider = await db.collection("users").findOne({
+      _id: new ObjectId(providerId),
+      role: "provider",
+    });
+
+    if (!provider) {
+      return res.status(404).json({
+        success: false,
+        message: "সেবাদাতা পাওয়া যায়নি",
+      });
+    }
+
+    const requestStats = await db
+      .collection("requests")
+      .aggregate([
+        {
+          $match: {
+            providerId: new ObjectId(providerId),
+          },
+        },
+        {
+          $group: {
+            _id: "$status",
+            count: {
+              $sum: 1,
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    const stats = {
+      totalRequests: 0,
+      pendingRequests: 0,
+      acceptedRequests: 0,
+      completedRequests: 0,
+      rejectedRequests: 0,
+      cancelledRequests: 0,
+    };
+
+    requestStats.forEach((item) => {
+      stats.totalRequests += item.count;
+
+      if (item._id === "pending") {
+        stats.pendingRequests = item.count;
+      }
+
+      if (item._id === "accepted") {
+        stats.acceptedRequests = item.count;
+      }
+
+      if (item._id === "completed") {
+        stats.completedRequests = item.count;
+      }
+
+      if (item._id === "rejected") {
+        stats.rejectedRequests = item.count;
+      }
+
+      if (item._id === "cancelled") {
+        stats.cancelledRequests = item.count;
+      }
+    });
+
+    const reviewStats = await db
+      .collection("reviews")
+      .aggregate([
+        {
+          $match: {
+            providerId: new ObjectId(providerId),
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            totalReviews: {
+              $sum: 1,
+            },
+            averageRating: {
+              $avg: "$rating",
+            },
+          },
+        },
+      ])
+      .toArray();
+
+    const totalReviews = reviewStats[0]?.totalReviews || 0;
+
+    const averageRating = reviewStats[0]?.averageRating
+      ? Number(reviewStats[0].averageRating.toFixed(1))
+      : 0;
+
+    res.status(200).json({
+      success: true,
+      stats: {
+        ...stats,
+        totalReviews,
+        averageRating,
+      },
+    });
+  } catch (error) {
+    console.error("Get provider stats error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Provider statistics আনতে সমস্যা হয়েছে",
+    });
+  }
+};
 
 const updateRequestStatus = async (req, res) => {
   try {
@@ -447,7 +575,6 @@ const cancelRequest = async (req, res) => {
   }
 };
 
-
 const getSingleRequest = async (req, res) => {
   try {
     const { id } = req.params;
@@ -523,10 +650,11 @@ const getSingleRequest = async (req, res) => {
 };
 
 module.exports = {
-    createRequest,
-    getMyRequests,
-    getProviderRequests,
-    updateRequestStatus,
+  createRequest,
+  getMyRequests,
+  getProviderRequests,
+  getProviderStats,
+  updateRequestStatus,
   getSingleRequest,
-    cancelRequest
+  cancelRequest,
 };

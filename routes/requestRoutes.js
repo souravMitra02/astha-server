@@ -1,23 +1,59 @@
 const express = require("express");
-const router = express.Router();
 
 const {
-    createRequest,
-    getMyRequests,
-    getProviderRequests,
-    updateRequestStatus,
-    getSingleRequest,
-     cancelRequest
+  createRequest,
+  getMyRequests,
+  getProviderRequests,
+  getProviderStats,
+  updateRequestStatus,
+  getSingleRequest,
+  cancelRequest,
 } = require("../controllers/requestController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 
-router.post("/", authMiddleware, createRequest);
-router.get("/my-requests", authMiddleware, getMyRequests);
-router.get("/provider-requests", authMiddleware, getProviderRequests);
-router.patch("/:id/status", authMiddleware, updateRequestStatus);
-router.patch("/:id/cancel", authMiddleware, cancelRequest);
-router.get("/:id", authMiddleware, getSingleRequest);
+const router = express.Router();
 
+router.post(
+  "/",
+  authMiddleware,
+  createRequest
+);
+
+router.get(
+  "/my",
+  authMiddleware,
+  getMyRequests
+);
+
+router.get(
+  "/provider",
+  authMiddleware,
+  getProviderRequests
+);
+
+router.get(
+  "/provider/stats",
+  authMiddleware,
+  getProviderStats
+);
+
+router.patch(
+  "/:id/status",
+  authMiddleware,
+  updateRequestStatus
+);
+
+router.patch(
+  "/:id/cancel",
+  authMiddleware,
+  cancelRequest
+);
+
+router.get(
+  "/:id",
+  authMiddleware,
+  getSingleRequest
+);
 
 module.exports = router;
