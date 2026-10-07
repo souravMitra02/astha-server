@@ -6,7 +6,8 @@ const {
     getMyRequests,
     getProviderRequests,
     updateRequestStatus,
-     getSingleRequest,
+    getSingleRequest,
+     cancelRequest
 } = require("../controllers/requestController");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -15,6 +16,7 @@ router.post("/", authMiddleware, createRequest);
 router.get("/my-requests", authMiddleware, getMyRequests);
 router.get("/provider-requests", authMiddleware, getProviderRequests);
 router.patch("/:id/status", authMiddleware, updateRequestStatus);
+router.patch("/:id/cancel", authMiddleware, cancelRequest);
 router.get("/:id", authMiddleware, getSingleRequest);
 
 

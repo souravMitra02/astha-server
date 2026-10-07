@@ -1,6 +1,6 @@
 const connectDB = require("../config/db");
 const { ObjectId } = require("mongodb");
-
+const createUserNotification = require("../utils/notificationHelper");
 const createRequest = async (req, res) => {
   try {
     const { serviceId, message } = req.body;
@@ -20,6 +20,9 @@ const createRequest = async (req, res) => {
     }
 
     const db = await connectDB();
+    const user = await db.collection("users").findOne({
+  _id: new ObjectId(req.user.userId),
+});
 
     const service = await db
       .collection("services")
@@ -64,6 +67,13 @@ const createRequest = async (req, res) => {
     const result = await db
       .collection("requests")
       .insertOne(newRequest);
+   await createUserNotification({
+  userId: service.providerId,
+  type: "new_request",
+  title: "নতুন সেবার অনুরোধ",
+  message: `${user.name} আপনার "${service.title}" সেবার জন্য অনুরোধ করেছেন।`,
+  requestId: result.insertedId,
+});
 
     res.status(201).json({
       success: true,
@@ -250,7 +260,7 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
-    if (!["accepted", "rejected"].includes(status)) {
+    if (!["accepted", "rejected", "completed"].includes(status)) {
       return res.status(400).json({
         success: false,
         message: "সঠিক status দেওয়া হয়নি",
@@ -277,8 +287,39 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
+    if (status === "accepted" || status === "rejected") {
+      if (request.status !== "pending") {
+        return res.status(400).json({
+          success: false,
+          message: "শুধু pending request গ্রহণ বা প্রত্যাখ্যান করা যাবে",
+        });
+      }
+    }
+
+    if (status === "completed") {
+      if (request.status !== "accepted") {
+        return res.status(400).json({
+          success: false,
+          message: "শুধু accepted request completed করা যাবে",
+        });
+      }
+    }
+
+    const service = await db.collection("services").findOne({
+      _id: request.serviceId,
+    });
+
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: "সার্ভিসটি পাওয়া যায়নি",
+      });
+    }
+
     const result = await db.collection("requests").updateOne(
-      { _id: new ObjectId(id) },
+      {
+        _id: new ObjectId(id),
+      },
       {
         $set: {
           status,
@@ -294,6 +335,32 @@ const updateRequestStatus = async (req, res) => {
       });
     }
 
+    let notificationTitle = "";
+    let notificationMessage = "";
+
+    if (status === "accepted") {
+      notificationTitle = "আপনার অনুরোধ গ্রহণ করা হয়েছে";
+      notificationMessage = `আপনার "${service.title}" সেবার অনুরোধটি গ্রহণ করা হয়েছে।`;
+    }
+
+    if (status === "rejected") {
+      notificationTitle = "আপনার অনুরোধ প্রত্যাখ্যান করা হয়েছে";
+      notificationMessage = `আপনার "${service.title}" সেবার অনুরোধটি প্রত্যাখ্যান করা হয়েছে।`;
+    }
+
+    if (status === "completed") {
+      notificationTitle = "আপনার সেবা সম্পন্ন হয়েছে";
+      notificationMessage = `আপনার "${service.title}" সেবার অনুরোধটি সম্পন্ন হয়েছে।`;
+    }
+
+    await createUserNotification({
+      userId: request.userId,
+      type: "request_status",
+      title: notificationTitle,
+      message: notificationMessage,
+      requestId: request._id,
+    });
+
     res.status(200).json({
       success: true,
       message: `Request ${status} হয়েছে`,
@@ -307,6 +374,79 @@ const updateRequestStatus = async (req, res) => {
     });
   }
 };
+
+const cancelRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "সঠিক request ID দেওয়া হয়নি",
+      });
+    }
+
+    const db = await connectDB();
+
+    const request = await db.collection("requests").findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!request) {
+      return res.status(404).json({
+        success: false,
+        message: "Request পাওয়া যায়নি",
+      });
+    }
+
+    if (request.userId.toString() !== req.user.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "এই request বাতিল করার অনুমতি আপনার নেই",
+      });
+    }
+
+    if (request.status !== "pending") {
+      return res.status(400).json({
+        success: false,
+        message: "শুধু pending request বাতিল করা যাবে",
+      });
+    }
+
+    const result = await db.collection("requests").updateOne(
+      {
+        _id: new ObjectId(id),
+        status: "pending",
+      },
+      {
+        $set: {
+          status: "cancelled",
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    if (result.modifiedCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Request বাতিল করা যায়নি",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Request সফলভাবে বাতিল করা হয়েছে",
+    });
+  } catch (error) {
+    console.error("Cancel request error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Request বাতিল করতে সমস্যা হয়েছে",
+    });
+  }
+};
+
 
 const getSingleRequest = async (req, res) => {
   try {
@@ -334,16 +474,43 @@ const getSingleRequest = async (req, res) => {
 
     const userId = req.user.userId;
 
-    if (request.userId !== userId && request.providerId !== userId) {
+    if (
+      request.userId.toString() !== userId &&
+      request.providerId.toString() !== userId
+    ) {
       return res.status(403).json({
         success: false,
         message: "এই request দেখার অনুমতি আপনার নেই",
       });
     }
 
+    const service = await db.collection("services").findOne({
+      _id: request.serviceId,
+    });
+
+    const provider = await db.collection("users").findOne(
+      {
+        _id: request.providerId,
+      },
+      {
+        projection: {
+          name: 1,
+          email: 1,
+          phone: 1,
+        },
+      }
+    );
+
     res.status(200).json({
       success: true,
-      request,
+      request: {
+        ...request,
+        serviceTitle: service?.title || "",
+        serviceCategory: service?.category || "",
+        providerName: provider?.name || "",
+        providerEmail: provider?.email || "",
+        providerPhone: provider?.phone || "",
+      },
     });
   } catch (error) {
     console.error("Get single request error:", error);
@@ -360,5 +527,6 @@ module.exports = {
     getMyRequests,
     getProviderRequests,
     updateRequestStatus,
-    getSingleRequest
+  getSingleRequest,
+    cancelRequest
 };
