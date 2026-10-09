@@ -36,6 +36,13 @@ const createRequest = async (req, res) => {
         message: "সার্ভিসটি পাওয়া যায়নি",
       });
     }
+    
+if (service.available === false) {
+  return res.status(400).json({
+    success: false,
+    message: "এই সেবাটি বর্তমানে বন্ধ রয়েছে",
+  });
+}
 
     if (service.providerId.toString() === req.user.userId) {
       return res.status(400).json({
@@ -249,9 +256,7 @@ const getProviderRequests = async (req, res) => {
   }
 };
 
-/* =========================================
-   Provider Dashboard Statistics
-========================================= */
+
 
 const getProviderStats = async (req, res) => {
   try {
